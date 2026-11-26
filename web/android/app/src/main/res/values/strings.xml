@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LuminaRead 流光精读</string>
+    <string name="title_activity_main">LuminaRead 流光精读</string>
+    <string name="package_name">com.luminaread.app</string>
+    <string name="custom_url_scheme">com.luminaread.app</string>
+</resources>

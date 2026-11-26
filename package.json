@@ -1,0 +1,33 @@
+{
+  "name": "luminaread",
+  "version": "1.1.0",
+  "description": "LuminaRead (流光精读) - Iridescent Liquid Glass Kaoyan & Graded English Reading Studio with Inline Word Lookup, Spaced Repetition, Notes Vault, and MCP Server",
+  "type": "module",
+  "main": "desktop/main.js",
+  "scripts": {
+    "prestart": "npm run build:web",
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "mcp": "node mcp/index.js",
+    "seed": "node scripts/seed.js",
+    "build:web": "npm --prefix web run build",
+    "desktop:dev": "electron .",
+    "desktop:icon": "python scripts/generate-icon.py",
+    "desktop:build": "node scripts/build-desktop.js",
+    "mobile:assets": "python scripts/export-mobile-assets.py",
+    "android:build": "node scripts/build-android.js",
+    "release:build": "node scripts/build-release.js",
+    "test": "node --test scripts/test-import.js",
+    "test:mcp": "node scripts/test-mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.5.0"
+  }
+}
