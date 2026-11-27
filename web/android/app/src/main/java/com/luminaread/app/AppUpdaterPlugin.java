@@ -14,12 +14,14 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -44,7 +46,7 @@ public class AppUpdaterPlugin extends Plugin {
             PackageManager pm = ctx.getPackageManager();
             PackageInfo pInfo = pm.getPackageInfo(ctx.getPackageName(), 0);
             JSObject ret = new JSObject();
-            ret.put("versionName", pInfo.versionName != null ? pInfo.versionName : "1.1.0");
+            ret.put("versionName", pInfo.versionName != null ? pInfo.versionName : "1.2.0");
             long vCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
                 ? pInfo.getLongVersionCode()
                 : pInfo.versionCode;
@@ -79,7 +81,7 @@ public class AppUpdaterPlugin extends Plugin {
                     conn.setConnectTimeout(20000);
                     conn.setReadTimeout(60000);
                     conn.setInstanceFollowRedirects(false);
-                    conn.setRequestProperty("User-Agent", "LuminaRead-Android-Updater/1.1.0");
+                    conn.setRequestProperty("User-Agent", "LuminaRead-Android-Updater/1.2.0");
                     int code = conn.getResponseCode();
                     if (code == HttpURLConnection.HTTP_MOVED_TEMP
                         || code == HttpURLConnection.HTTP_MOVED_PERM
@@ -177,6 +179,73 @@ public class AppUpdaterPlugin extends Plugin {
             } catch (Exception e) {
                 emitProgress("error", 0, "更新失败: " + e.getMessage());
                 call.reject(e.getMessage(), e);
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
+        });
+    }
+
+    @PluginMethod
+    public void fetchText(PluginCall call) {
+        String rawUrl = call.getString("url", "");
+        if (rawUrl == null || rawUrl.trim().isEmpty()) {
+            call.reject("缺少请求地址");
+            return;
+        }
+        final String targetUrl = rawUrl.trim();
+        executor.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL currentUrl = new URL(targetUrl);
+                int redirects = 0;
+                int code = 0;
+                while (redirects < 5) {
+                    conn = (HttpURLConnection) currentUrl.openConnection();
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(20000);
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setRequestProperty("User-Agent", "LuminaRead-Android-Updater/1.2.0");
+                    conn.setRequestProperty("Accept", "application/json, text/plain, */*");
+                    code = conn.getResponseCode();
+                    if (code == HttpURLConnection.HTTP_MOVED_TEMP
+                        || code == HttpURLConnection.HTTP_MOVED_PERM
+                        || code == 307
+                        || code == 308) {
+                        String location = conn.getHeaderField("Location");
+                        conn.disconnect();
+                        if (location == null || location.isEmpty()) {
+                            throw new RuntimeException("重定向地址为空");
+                        }
+                        currentUrl = new URL(currentUrl, location);
+                        redirects++;
+                        continue;
+                    }
+                    break;
+                }
+
+                InputStream stream = (code >= 200 && code < 400)
+                    ? conn.getInputStream()
+                    : conn.getErrorStream();
+                String body = "";
+                if (stream != null) {
+                    try (InputStream in = new BufferedInputStream(stream);
+                         ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                        byte[] buf = new byte[8192];
+                        int n;
+                        while ((n = in.read(buf)) != -1) {
+                            baos.write(buf, 0, n);
+                        }
+                        body = baos.toString(StandardCharsets.UTF_8.name());
+                    }
+                }
+                JSObject res = new JSObject();
+                res.put("status", code);
+                res.put("body", body);
+                call.resolve(res);
+            } catch (Exception e) {
+                call.reject("网络请求失败: " + e.getMessage(), e);
             } finally {
                 if (conn != null) {
                     conn.disconnect();

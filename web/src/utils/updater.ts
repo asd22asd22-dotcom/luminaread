@@ -3,6 +3,7 @@ import { isNativeMobile } from '../api';
 
 interface AppUpdaterPlugin {
   getAppInfo: () => Promise<{ versionName: string; versionCode: number; packageName: string }>;
+  fetchText?: (opts: { url: string }) => Promise<{ status: number; body: string }>;
   downloadAndInstallApk: (opts: { url: string; sha256?: string }) => Promise<{ ok: boolean }>;
   addListener?: (
     eventName: 'updateProgress',
@@ -56,18 +57,51 @@ async function fetchManifestFromWeb(feedUrl: string) {
   if (!cleanUrl) {
     throw new Error('请先设置更新源地址（latest.json 或 GitHub 仓库地址）');
   }
+  const nativePlugin = isNativeMobile() ? getAndroidUpdaterPlugin() : null;
   const gh = parseGitHubRepoUrl(cleanUrl);
   if (gh) {
+    // Prefer direct Release download URL via Android native HTTP client (zero CORS + zero API rate limit)
+    const directUrl = `https://github.com/${gh.owner}/${gh.repo}/releases/latest/download/latest.json`;
+    if (nativePlugin?.fetchText) {
+      try {
+        const directRes = await nativePlugin.fetchText({ url: directUrl });
+        if (directRes.status >= 200 && directRes.status < 300 && directRes.body) {
+          return JSON.parse(directRes.body);
+        }
+      } catch {
+        // Fall back to GitHub REST API below
+      }
+    }
+
     const res = await fetch(`https://api.github.com/repos/${gh.owner}/${gh.repo}/releases/latest`, {
       headers: { Accept: 'application/json' },
     });
-    if (!res.ok) throw new Error(`GitHub Release 请求失败 (${res.status})`);
+    if (!res.ok) {
+      if (res.status === 403) {
+        throw new Error('GitHub API 请求受限 (403)，请确认最新 Release 已上传 latest.json 或稍后再试');
+      }
+      throw new Error(`GitHub Release 请求失败 (${res.status})`);
+    }
     const release = await res.json();
     const assets = Array.isArray(release.assets) ? release.assets : [];
     const manifestAsset = assets.find((a: { name?: string }) => a.name === 'latest.json');
     if (manifestAsset?.browser_download_url) {
-      const mr = await fetch(manifestAsset.browser_download_url);
-      if (mr.ok) return await mr.json();
+      if (nativePlugin?.fetchText) {
+        try {
+          const nativeRes = await nativePlugin.fetchText({ url: manifestAsset.browser_download_url });
+          if (nativeRes.status >= 200 && nativeRes.status < 300 && nativeRes.body) {
+            return JSON.parse(nativeRes.body);
+          }
+        } catch {
+          // Fall back below
+        }
+      }
+      try {
+        const mr = await fetch(manifestAsset.browser_download_url);
+        if (mr.ok) return await mr.json();
+      } catch {
+        // GitHub release asset redirects lack CORS headers in browser/WebView; fall back to release.assets
+      }
     }
     const winPatch = assets.find((a: { name?: string }) => /patch.*\.zip$/i.test(a.name || ''));
     const apkAsset = assets.find((a: { name?: string }) => /\.apk$/i.test(a.name || ''));
@@ -78,6 +112,20 @@ async function fetchManifestFromWeb(feedUrl: string) {
       windows: winPatch ? { url: winPatch.browser_download_url, size: winPatch.size, sha256: '' } : null,
       android: apkAsset ? { url: apkAsset.browser_download_url, size: apkAsset.size, sha256: '' } : null,
     };
+  }
+  if (nativePlugin?.fetchText) {
+    try {
+      const nativeRes = await nativePlugin.fetchText({ url: cleanUrl });
+      if (nativeRes.status < 200 || nativeRes.status >= 300) {
+        throw new Error(`获取更新清单失败 (${nativeRes.status})`);
+      }
+      return JSON.parse(nativeRes.body);
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        throw new Error('更新清单 JSON 格式无效');
+      }
+      throw err;
+    }
   }
   const res = await fetch(cleanUrl);
   if (!res.ok) throw new Error(`获取更新清单失败 (${res.status})`);

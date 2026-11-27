@@ -42,7 +42,17 @@ function parseGitHubRepoUrl(rawUrl) {
   return null;
 }
 
-export async function resolveManifest(feedUrl) {
+async function safeFetch(fetchImpl, url, init) {
+  const fn = fetchImpl || globalThis.fetch;
+  try {
+    return await fn(url, init);
+  } catch (err) {
+    const detail = err?.cause?.code || err?.cause?.message || err?.message || '未知网络错误';
+    throw new Error(`网络连接失败（${detail}），请检查网络或系统代理设置`);
+  }
+}
+
+export async function resolveManifest(feedUrl, { fetchImpl } = {}) {
   const cleanUrl = String(feedUrl || '').trim();
   if (!cleanUrl) {
     throw new Error('请先填写更新源地址（latest.json URL 或 GitHub 仓库地址）');
@@ -50,25 +60,43 @@ export async function resolveManifest(feedUrl) {
 
   const gh = parseGitHubRepoUrl(cleanUrl);
   const headers = {
-    'User-Agent': 'LuminaRead-Updater/1.1.0',
+    'User-Agent': 'LuminaRead-Updater/1.2.0',
     Accept: 'application/json',
   };
 
   if (gh) {
+    // Prefer direct Release download URL first (no api.github.com 60/hr IP rate limit)
+    const directManifestUrl = `https://github.com/${gh.owner}/${gh.repo}/releases/latest/download/latest.json`;
+    try {
+      const directRes = await safeFetch(fetchImpl, directManifestUrl, { headers });
+      if (directRes.ok) {
+        return await directRes.json();
+      }
+    } catch {
+      // Fall back to GitHub REST API below
+    }
+
     const apiUrl = `https://api.github.com/repos/${gh.owner}/${gh.repo}/releases/latest`;
-    const res = await fetch(apiUrl, { headers });
+    const res = await safeFetch(fetchImpl, apiUrl, { headers });
     if (!res.ok) {
+      if (res.status === 403) {
+        throw new Error('GitHub API 请求受限 (403)，请确认最新 Release 已上传 latest.json 或稍后再试');
+      }
       throw new Error(`GitHub Release 请求失败 (${res.status})`);
     }
     const release = await res.json();
     const assets = Array.isArray(release.assets) ? release.assets : [];
 
-    // Prefer uploaded latest.json asset if present
+    // Prefer uploaded latest.json asset if reachable; otherwise fall back to release.assets metadata
     const manifestAsset = assets.find((a) => a.name === 'latest.json');
     if (manifestAsset?.browser_download_url) {
-      const mRes = await fetch(manifestAsset.browser_download_url, { headers });
-      if (mRes.ok) {
-        return await mRes.json();
+      try {
+        const mRes = await safeFetch(fetchImpl, manifestAsset.browser_download_url, { headers });
+        if (mRes.ok) {
+          return await mRes.json();
+        }
+      } catch {
+        // Ignore transient redirect/CDN errors and synthesize from release.assets below
       }
     }
 
@@ -88,7 +116,7 @@ export async function resolveManifest(feedUrl) {
     };
   }
 
-  const res = await fetch(cleanUrl, { headers });
+  const res = await safeFetch(fetchImpl, cleanUrl, { headers });
   if (!res.ok) {
     throw new Error(`获取更新清单失败 (${res.status})`);
   }
@@ -105,8 +133,8 @@ function resolveDownloadUrl(rawUrl, baseUrl) {
   }
 }
 
-export async function checkForDesktopUpdate(currentVersion, feedUrl) {
-  const manifest = await resolveManifest(feedUrl);
+export async function checkForDesktopUpdate(currentVersion, feedUrl, { fetchImpl } = {}) {
+  const manifest = await resolveManifest(feedUrl, { fetchImpl });
   const latestVersion = String(manifest?.version || '').replace(/^v/i, '').trim();
   if (!latestVersion) {
     throw new Error('更新清单缺少有效的 version 字段');
@@ -148,6 +176,7 @@ export async function downloadAndApplyDesktopUpdate({
   exePath,
   dataDir,
   isPackaged,
+  fetchImpl,
   onProgress,
   onBeforeQuit,
 }) {
@@ -163,8 +192,8 @@ export async function downloadAndApplyDesktopUpdate({
   const zipPath = path.join(updatesDir, `luminaread-patch-${updateInfo.latestVersion || 'next'}.zip`);
   onProgress?.({ stage: 'downloading', percent: 0, message: '正在连接更新服务器...' });
 
-  const res = await fetch(updateInfo.downloadUrl, {
-    headers: { 'User-Agent': 'LuminaRead-Updater/1.1.0' },
+  const res = await safeFetch(fetchImpl, updateInfo.downloadUrl, {
+    headers: { 'User-Agent': 'LuminaRead-Updater/1.2.0' },
   });
   if (!res.ok || !res.body) {
     throw new Error(`下载更新包失败 (${res.status})`);

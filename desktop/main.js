@@ -7,6 +7,7 @@ import {
   globalShortcut,
   ipcMain,
   nativeImage,
+  net,
   shell,
 } from 'electron';
 import fs from 'node:fs';
@@ -371,14 +372,16 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('updater:check', async (_event, feedUrl) => {
-    let currentVersion = '1.1.0';
+    let currentVersion = '1.2.0';
     try {
       const pkg = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf-8'));
       if (pkg?.version) currentVersion = pkg.version;
     } catch {
       currentVersion = app.getVersion();
     }
-    return await checkForDesktopUpdate(currentVersion, feedUrl);
+    return await checkForDesktopUpdate(currentVersion, feedUrl, {
+      fetchImpl: net.fetch.bind(net),
+    });
   });
 
   ipcMain.handle('updater:install', async (_event, updateInfo) => {
@@ -394,6 +397,7 @@ function registerIpcHandlers() {
       exePath: process.execPath,
       dataDir,
       isPackaged,
+      fetchImpl: net.fetch.bind(net),
       onProgress: (payload) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('updater:progress', payload);

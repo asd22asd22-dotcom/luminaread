@@ -43,6 +43,11 @@ export const UpdateModal: React.FC<Props> = ({
     getCurrentAppVersion().then(setVersionMeta).catch(() => {});
   }, []);
 
+  const formatErr = (err: unknown, fallback: string) => {
+    const raw = err instanceof Error ? err.message : fallback;
+    return raw.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '').trim() || fallback;
+  };
+
   const handleSaveFeedAndCheck = async () => {
     setErrorMsg('');
     setChecking(true);
@@ -62,7 +67,7 @@ export const UpdateModal: React.FC<Props> = ({
         onNotify(`当前已是最新版本 v${res.currentVersion}`);
       }
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : '检查更新失败');
+      setErrorMsg(formatErr(err, '检查更新失败'));
     } finally {
       setChecking(false);
     }
@@ -80,7 +85,7 @@ export const UpdateModal: React.FC<Props> = ({
         setProgress({ stage: 'restarting', percent: 100, message: '正在替换文件并重启软件...' });
       }
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : '安装更新失败');
+      setErrorMsg(formatErr(err, '安装更新失败'));
       setProgress(null);
     } finally {
       setInstalling(false);
