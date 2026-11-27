@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('luminareadDesktop', {
   isDesktop: true,
   platform: process.platform,
-  version: '1.1.0',
+  version: '1.2.0',
 
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
   pickFiles: () => ipcRenderer.invoke('dialog:pickFiles'),

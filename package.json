@@ -1,6 +1,6 @@
 {
   "name": "luminaread",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "LuminaRead (流光精读) - Iridescent Liquid Glass Kaoyan & Graded English Reading Studio with Inline Word Lookup, Spaced Repetition, Notes Vault, and MCP Server",
   "type": "module",
   "main": "desktop/main.js",

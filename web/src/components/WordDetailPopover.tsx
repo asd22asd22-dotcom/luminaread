@@ -50,12 +50,12 @@ export const WordDetailPopover: React.FC<Props> = ({
     window.speechSynthesis.speak(utter);
   };
 
-  const width = 320;
-  const left = Math.max(
-    12,
-    Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2)
-  );
-  const top = Math.min(window.innerHeight - 310, rect.bottom + 10);
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 640;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
+  const width = Math.min(320, vw - 24);
+  const left = Math.max(12, Math.min(vw - width - 12, rect.left + rect.width / 2 - width / 2));
+  const top = Math.max(12, Math.min(Math.max(12, vh - 360), rect.bottom + 10));
 
   const handleSave = async () => {
     setSaving(true);
@@ -68,11 +68,22 @@ export const WordDetailPopover: React.FC<Props> = ({
   };
 
   return (
-    <div
-      style={{ position: 'fixed', left, top, width, zIndex: 60 }}
-      onClick={(e) => e.stopPropagation()}
-      className="glass-elevated iridescent-border rounded-2xl p-4 space-y-3 text-sm"
-    >
+    <>
+      {isMobileViewport && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-55 bg-black/45 backdrop-blur-[2px]"
+        />
+      )}
+      <div
+        style={isMobileViewport ? undefined : { position: 'fixed', left, top, width, zIndex: 60 }}
+        onClick={(e) => e.stopPropagation()}
+        className={
+          isMobileViewport
+            ? 'fixed inset-x-2 bottom-2 z-60 max-h-[82dvh] overflow-y-auto glass-elevated iridescent-border rounded-3xl p-4 space-y-3 text-sm shadow-2xl'
+            : 'glass-elevated iridescent-border rounded-2xl p-4 space-y-3 text-sm'
+        }
+      >
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -193,6 +204,7 @@ export const WordDetailPopover: React.FC<Props> = ({
           保存
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 };

@@ -21,6 +21,8 @@ interface Props {
   blindMode: boolean;
   activeTab: StudyTab;
   onTabChange: (tab: StudyTab) => void;
+  mobileSheet?: boolean;
+  onCloseSheet?: () => void;
   clickedWords: ClickedWord[];
   annotations: AnnotationItem[];
   customNotes: CustomNote[];
@@ -59,6 +61,8 @@ export const StudyPanel: React.FC<Props> = ({
   blindMode,
   activeTab,
   onTabChange,
+  mobileSheet = false,
+  onCloseSheet,
   clickedWords,
   annotations,
   customNotes,
@@ -151,7 +155,27 @@ export const StudyPanel: React.FC<Props> = ({
   };
 
   return (
-    <div className="glass-panel rounded-3xl flex flex-col h-full max-h-[calc(100vh-8.5rem)] overflow-hidden">
+    <div
+      className={`glass-panel flex flex-col overflow-hidden ${
+        mobileSheet
+          ? 'rounded-t-3xl rounded-b-none h-full max-h-[78dvh]'
+          : 'rounded-3xl h-full max-h-[calc(100vh-8.5rem)]'
+      }`}
+    >
+      {mobileSheet && (
+        <div className="pt-2 pb-1 px-4 flex items-center justify-between border-b border-white/10 shrink-0">
+          <div className="w-8" />
+          <div className="w-10 h-1 rounded-full bg-white/25" />
+          <button
+            type="button"
+            onClick={onCloseSheet}
+            className="p-1.5 rounded-xl hover:bg-white/10 text-[var(--text-muted)] cursor-pointer"
+            title="收起学习面板"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Tab Bar */}
       <div className="p-2 border-b border-white/10 grid grid-cols-5 gap-1">
         {tabs.map((t) => (

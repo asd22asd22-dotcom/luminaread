@@ -148,7 +148,7 @@ export const InteractiveParagraph: React.FC<Props> = ({
   };
 
   return (
-    <div className="group relative mb-5">
+    <div className="group relative mb-5 max-w-full">
       {onSpeakFromParagraph && (
         <button
           type="button"
@@ -157,7 +157,7 @@ export const InteractiveParagraph: React.FC<Props> = ({
             onSpeakFromParagraph(paragraphIndex);
           }}
           title="从本段开始朗读"
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity absolute -right-2 -top-2 z-10 glass-soft hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 rounded-full px-2 py-0.5 text-[10px] flex items-center gap-1 cursor-pointer"
+          className="hidden lg:flex opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity absolute -right-2 -top-2 z-10 glass-soft hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 rounded-full px-2 py-0.5 text-[10px] items-center gap-1 cursor-pointer"
         >
           <Volume2 className="w-3 h-3" />
           从本段读
@@ -178,7 +178,7 @@ export const InteractiveParagraph: React.FC<Props> = ({
             : typography?.fontFamily === 'mono'
             ? 'reading-mono'
             : 'reading-serif'
-        } text-[18px] md:text-[19px] text-[var(--text-primary)] select-text`}
+        } max-w-full break-words [overflow-wrap:break-word] text-[17px] sm:text-[18px] md:text-[19px] text-[var(--text-primary)] select-text`}
       >
         {segments.map((seg, i) => {
           const ann = getMatchingAnnotation(seg.start, seg.end);
@@ -212,51 +212,59 @@ export const InteractiveParagraph: React.FC<Props> = ({
           const normalized = seg.text.toLowerCase();
           const isCoreVocab = highlightCoreVocab && coreVocabSet.has(normalized);
           const showInline = Boolean(cw && cw.is_visible_inline === 1);
+          const hasUnderGloss = isLoading || (showInline && Boolean(cw));
+
+          const wordSpan = (
+            <span
+              data-start={seg.start}
+              data-end={seg.end}
+              data-token-index={seg.tokenIndex}
+              onClick={(e) => {
+                const sel = window.getSelection()?.toString().trim();
+                if (sel && sel.length > 0) return;
+                e.stopPropagation();
+                onWordClick(
+                  paragraphIndex,
+                  seg.tokenIndex,
+                  seg.text,
+                  extractContextSentence(text, seg.start)
+                );
+              }}
+              onContextMenu={(e) => {
+                if (cw) {
+                  e.preventDefault();
+                  onWordInspect(cw, (e.currentTarget as HTMLElement).getBoundingClientRect());
+                } else if (ann) {
+                  e.preventDefault();
+                  onAnnotationClick(ann, (e.currentTarget as HTMLElement).getBoundingClientRect());
+                }
+              }}
+              title={
+                cw
+                  ? `${cw.short_meaning}（点击切换显隐 · 点击下方释义卡片查看详情）`
+                  : '点击查看中文释义并加入复习本'
+              }
+              className={`word-token ${hlClass} ${ttsClass} ${
+                cw ? 'word-token-active' : ''
+              } ${isCoreVocab ? 'word-token-vocab' : ''} ${
+                isLoading ? 'animate-pulse bg-cyan-400/25' : ''
+              }`}
+            >
+              {seg.text}
+            </span>
+          );
+
+          if (!hasUnderGloss) {
+            return <React.Fragment key={`w-${seg.tokenIndex}`}>{wordSpan}</React.Fragment>;
+          }
 
           return (
-            <ruby key={`w-${seg.tokenIndex}`} className="word-ruby">
-              <span
-                data-start={seg.start}
-                data-end={seg.end}
-                data-token-index={seg.tokenIndex}
-                onClick={(e) => {
-                  const sel = window.getSelection()?.toString().trim();
-                  if (sel && sel.length > 0) return;
-                  e.stopPropagation();
-                  onWordClick(
-                    paragraphIndex,
-                    seg.tokenIndex,
-                    seg.text,
-                    extractContextSentence(text, seg.start)
-                  );
-                }}
-                onContextMenu={(e) => {
-                  if (cw) {
-                    e.preventDefault();
-                    onWordInspect(cw, (e.currentTarget as HTMLElement).getBoundingClientRect());
-                  } else if (ann) {
-                    e.preventDefault();
-                    onAnnotationClick(ann, (e.currentTarget as HTMLElement).getBoundingClientRect());
-                  }
-                }}
-                title={
-                  cw
-                    ? `${cw.short_meaning}（点击切换显隐 · 点击下方释义卡片查看详情）`
-                    : '点击查看中文释义并加入复习本'
-                }
-                className={`word-token ${hlClass} ${ttsClass} ${
-                  cw ? 'word-token-active' : ''
-                } ${isCoreVocab ? 'word-token-vocab' : ''} ${
-                  isLoading ? 'animate-pulse bg-cyan-400/25' : ''
-                }`}
-              >
-                {seg.text}
-              </span>
-
+            <span key={`w-${seg.tokenIndex}`} className="word-annotated">
+              {wordSpan}
               {isLoading ? (
-                <rt className="word-rt opacity-75">查询中…</rt>
+                <span className="word-rt opacity-75">查询中…</span>
               ) : showInline && cw ? (
-                <rt
+                <span
                   className="word-rt"
                   title="点击查看完整词义、发音与个人笔记"
                   onClick={(e) => {
@@ -265,9 +273,9 @@ export const InteractiveParagraph: React.FC<Props> = ({
                   }}
                 >
                   {cw.short_meaning}
-                </rt>
+                </span>
               ) : null}
-            </ruby>
+            </span>
           );
         })}
       </p>

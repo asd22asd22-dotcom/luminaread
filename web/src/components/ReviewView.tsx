@@ -348,14 +348,14 @@ export const ReviewView: React.FC<Props> = ({
             className="perspective-1200 cursor-pointer"
           >
             <div
-              className={`relative min-h-[340px] transition-transform duration-500 preserve-3d ${
+              className={`relative min-h-[320px] sm:min-h-[340px] transition-transform duration-500 preserve-3d ${
                 flipped ? 'rotate-y-180' : ''
               }`}
             >
               {/* Front Side */}
-              <div className="absolute inset-0 backface-hidden glass-panel iridescent-border rounded-3xl p-7 flex flex-col justify-between">
-                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                  <span className="px-2.5 py-0.5 rounded-full glass-soft text-cyan-300 flex items-center gap-1">
+              <div className="absolute inset-0 backface-hidden glass-panel iridescent-border rounded-3xl p-4 sm:p-7 flex flex-col justify-between overflow-y-auto">
+                <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+                  <span className="px-2.5 py-0.5 rounded-full glass-soft text-cyan-300 flex items-center gap-1 shrink-0">
                     <Layers className="w-3 h-3" />
                     {current.cardType === 'word'
                       ? '单词记忆'
@@ -371,10 +371,10 @@ export const ReviewView: React.FC<Props> = ({
                         e.stopPropagation();
                         onOpenArticle(current.article_id!, current.paragraph_index);
                       }}
-                      className="flex items-center gap-1 hover:text-cyan-300 cursor-pointer"
+                      className="flex items-center gap-1 hover:text-cyan-300 cursor-pointer min-w-0"
                     >
-                      出处：{current.article_title}
-                      <ExternalLink className="w-3 h-3" />
+                      <span className="truncate max-w-[160px] sm:max-w-[260px]">出处：{current.article_title}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
                     </button>
                   ) : (
                     <span>来源：独立笔记</span>
@@ -384,10 +384,10 @@ export const ReviewView: React.FC<Props> = ({
                 <div className="text-center space-y-4 my-auto py-4">
                   <div className="flex items-center justify-center gap-3">
                     <div
-                      className={`font-bold tracking-tight ${
+                      className={`font-bold tracking-tight break-words ${
                         current.cardType === 'word'
                           ? 'text-3xl md:text-4xl'
-                          : 'text-lg md:text-xl leading-relaxed text-left'
+                          : 'text-base sm:text-lg md:text-xl leading-relaxed text-left'
                       }`}
                     >
                       {current.front}
@@ -415,17 +415,17 @@ export const ReviewView: React.FC<Props> = ({
                   )}
                 </div>
 
-                <div className="text-center text-xs text-[var(--text-muted)] flex items-center justify-center gap-1.5">
+                <div className="text-center text-xs text-[var(--text-muted)] flex items-center justify-center gap-1.5 shrink-0">
                   <RotateCw className="w-3.5 h-3.5" />
                   点击卡片或按空格键查看中文释义与笔记
                 </div>
               </div>
 
               {/* Back Side */}
-              <div className="absolute inset-0 backface-hidden rotate-y-180 glass-elevated iridescent-border rounded-3xl p-7 flex flex-col justify-between">
-                <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
-                  <span className="font-semibold text-cyan-300">{current.front}</span>
-                  <span>
+              <div className="absolute inset-0 backface-hidden rotate-y-180 glass-elevated iridescent-border rounded-3xl p-4 sm:p-7 flex flex-col justify-between overflow-y-auto">
+                <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
+                  <span className="font-semibold text-cyan-300 truncate max-w-[140px] sm:max-w-[260px]">{current.front}</span>
+                  <span className="shrink-0">
                     已复习 {current.repetitions} 次 · 当前间隔 {current.interval_days} 天
                   </span>
                 </div>

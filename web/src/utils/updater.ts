@@ -87,21 +87,21 @@ async function fetchManifestFromWeb(feedUrl: string) {
 export async function getCurrentAppVersion(): Promise<{ version: string; platformLabel: string }> {
   if (window.luminareadDesktop?.isDesktop) {
     const v = await window.luminareadDesktop.getAppVersion();
-    return { version: v || window.luminareadDesktop.version || '1.1.0', platformLabel: 'Windows 桌面版' };
+    return { version: v || window.luminareadDesktop.version || '1.2.0', platformLabel: 'Windows 桌面版' };
   }
   if (isNativeMobile()) {
     const plugin = getAndroidUpdaterPlugin();
     if (plugin) {
       try {
         const info = await plugin.getAppInfo();
-        return { version: info.versionName || '1.1.0', platformLabel: 'Android 安卓版' };
+        return { version: info.versionName || '1.2.0', platformLabel: 'Android 安卓版' };
       } catch {
         // fallback
       }
     }
-    return { version: '1.1.0', platformLabel: 'Android 安卓版' };
+    return { version: '1.2.0', platformLabel: 'Android 安卓版' };
   }
-  return { version: '1.1.0', platformLabel: 'Web 浏览器版' };
+  return { version: '1.2.0', platformLabel: 'Web 浏览器版' };
 }
 
 function resolveDownloadUrl(rawUrl: string, baseUrl: string): string {

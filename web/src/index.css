@@ -42,6 +42,8 @@ html,
 body,
 #root {
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   margin: 0;
   padding: 0;
   background-color: var(--bg-base);
@@ -154,18 +156,20 @@ body,
   animation: none !important;
 }
 
-/* English Reading Typography & Under-word Ruby */
+/* English Reading Typography & Constraint-Safe Under-word Gloss */
 .reading-serif {
   font-family: "Georgia", "Cambria", "Times New Roman", "Noto Serif SC", serif;
-  line-height: 2.55;
+  line-height: 2.35;
   letter-spacing: 0.01em;
 }
 
-.word-ruby {
-  ruby-position: under;
-  -webkit-ruby-position: after;
-  ruby-align: center;
-  display: inline-ruby;
+.word-annotated {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: baseline;
+  max-width: 100%;
+  margin: 0 1px;
 }
 
 .word-token {
@@ -194,16 +198,23 @@ body,
 
 .word-rt {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  font-size: 0.66em;
-  line-height: 1.25;
+  font-size: 0.65em;
+  line-height: 1.2;
   color: var(--ruby-color);
   background: var(--ruby-bg);
   border: 1px solid var(--ruby-border);
-  border-radius: 999px;
-  padding: 1px 7px;
+  border-radius: 10px;
+  padding: 2px 7px;
   margin-top: 2px;
   font-weight: 500;
-  white-space: nowrap;
+  max-width: min(11rem, 62vw);
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
   cursor: pointer;
@@ -212,6 +223,21 @@ body,
 
 .word-rt:hover {
   filter: brightness(1.18);
+}
+
+@media (max-width: 640px) {
+  .reading-serif,
+  .reading-sans,
+  .reading-mono {
+    line-height: 2.15;
+    word-spacing: 0.01em;
+  }
+
+  .word-rt {
+    font-size: 0.64em;
+    max-width: min(9.5rem, 56vw);
+    padding: 1.5px 6px;
+  }
 }
 
 /* Highlight colors for phrases & sentences */

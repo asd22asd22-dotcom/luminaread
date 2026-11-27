@@ -9,7 +9,7 @@ import {
   Trash2,
   Bookmark,
 } from 'lucide-react';
-import { api } from '../api';
+import { api, isNativeMobile } from '../api';
 import type { ArticleSummary } from '../types';
 
 interface Props {
@@ -99,7 +99,7 @@ export const LibraryView: React.FC<Props> = ({
   return (
     <div className="space-y-5 pb-12">
       {/* Header & Controls */}
-      <div className="glass-panel rounded-3xl p-5 space-y-4">
+      <div className="glass-panel rounded-3xl p-4 sm:p-5 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">精读文章书库</h1>
@@ -109,13 +109,13 @@ export const LibraryView: React.FC<Props> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <form onSubmit={handleSearchSubmit} className="relative">
+            <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-auto">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索标题或关键词..."
-                className="glass-soft rounded-xl pl-9 pr-3 py-1.5 text-sm outline-none focus:border-cyan-400/60 w-52 md:w-64"
+                className="glass-soft rounded-xl pl-9 pr-3 py-1.5 text-sm outline-none focus:border-cyan-400/60 w-full sm:w-52 md:w-64"
               />
             </form>
 
@@ -130,14 +130,16 @@ export const LibraryView: React.FC<Props> = ({
               <option value="completed" className="text-slate-900">已完成</option>
             </select>
 
-            <button
-              onClick={handleSync}
-              disabled={syncing}
-              className="glass-soft hover:bg-white/15 rounded-xl px-3.5 py-1.5 text-sm font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${syncing ? 'animate-spin' : ''}`} />
-              同步本地 90 篇
-            </button>
+            {!isNativeMobile() && (
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="glass-soft hover:bg-white/15 rounded-xl px-3.5 py-1.5 text-sm font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${syncing ? 'animate-spin' : ''}`} />
+                同步本地 90 篇
+              </button>
+            )}
           </div>
         </div>
 

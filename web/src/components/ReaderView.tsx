@@ -13,6 +13,15 @@ import {
   Sparkles,
   Clock,
   CheckCircle2,
+  BookA,
+  GitBranch,
+  Languages,
+  CheckSquare,
+  NotebookPen,
+  SlidersHorizontal,
+  X,
+  Minus,
+  Plus,
 } from 'lucide-react';
 import { api } from '../api';
 import type {
@@ -38,6 +47,7 @@ interface Props {
   articleId: number;
   scrollToPara?: number | null;
   settings?: AppSettings;
+  onUpdateSettings?: (patch: Partial<AppSettings>) => Promise<void>;
   onBack: () => void;
   onNotify: (msg: string) => void;
   onOpenMcp: () => void;
@@ -48,6 +58,7 @@ export const ReaderView: React.FC<Props> = ({
   articleId,
   scrollToPara,
   settings,
+  onUpdateSettings,
   onBack,
   onNotify,
   onOpenMcp,
@@ -64,6 +75,11 @@ export const ReaderView: React.FC<Props> = ({
   const [highlightCoreVocab, setHighlightCoreVocab] = useState(true);
   const [focusMode, setFocusMode] = useState(false);
   const [studyTab, setStudyTab] = useState<StudyTab>('vocab');
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState<boolean>(
+    () => typeof window !== 'undefined' && localStorage.getItem('luminaread-reader-tip-dismissed') === '1'
+  );
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0);
 
@@ -306,15 +322,13 @@ export const ReaderView: React.FC<Props> = ({
     onNotify('已从生词本移除');
   };
 
-  const handleTextMouseUp = (paragraphIndex: number, paragraphText: string) => {
+  const handleTextMouseUp = useCallback((paragraphIndex: number, paragraphText: string) => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) {
-      setSelectionState(null);
       return;
     }
     const rawSelected = sel.toString().trim();
     if (rawSelected.length < 2) {
-      setSelectionState(null);
       return;
     }
 
@@ -357,14 +371,55 @@ export const ReaderView: React.FC<Props> = ({
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     setInspectWordState(null);
-    setSelectionState({
-      rect,
-      paragraphIndex,
-      startOffset,
-      endOffset,
-      selectedText: cleanText,
+    setSelectionState((prev) => {
+      if (
+        prev &&
+        prev.paragraphIndex === paragraphIndex &&
+        prev.startOffset === startOffset &&
+        prev.endOffset === endOffset
+      ) {
+        return prev;
+      }
+      return {
+        rect,
+        paragraphIndex,
+        startOffset,
+        endOffset,
+        selectedText: cleanText,
+      };
     });
-  };
+  }, []);
+
+  // Capture Android touch long-press text selections reliably via debounced selectionchange
+  useEffect(() => {
+    if (!article) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onSelectionChange = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) return;
+        const textStr = sel.toString().trim();
+        if (textStr.split(/\s+/).length < 2) return;
+        const anchorEl =
+          sel.anchorNode instanceof HTMLElement
+            ? sel.anchorNode
+            : sel.anchorNode?.parentElement;
+        const paraEl = anchorEl?.closest('[data-para-index]') as HTMLElement | null;
+        if (!paraEl) return;
+        const pIdx = Number(paraEl.getAttribute('data-para-index'));
+        const pText = paragraphs[pIdx];
+        if (typeof pText === 'string') {
+          handleTextMouseUp(pIdx, pText);
+        }
+      }, 320);
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('selectionchange', onSelectionChange);
+    };
+  }, [article?.id, paragraphs, handleTextMouseUp]);
 
   const handleSaveAnnotation = async (payload: {
     color: HighlightColor;
@@ -607,10 +662,240 @@ export const ReaderView: React.FC<Props> = ({
     );
   }
 
+  const currentFontSize = settings?.reader_font_size ?? 19;
+  const totalNotesCount = clickedWords.length + annotations.length + customNotes.length;
+  const mobileStudyTabs: Array<{ id: StudyTab; label: string; icon: React.ReactNode }> = [
+    { id: 'vocab', label: '词汇', icon: <BookA className="w-4 h-4" /> },
+    { id: 'sentences', label: '长难句', icon: <GitBranch className="w-4 h-4" /> },
+    { id: 'translation', label: '译文', icon: <Languages className="w-4 h-4" /> },
+    { id: 'quiz', label: '自测', icon: <CheckSquare className="w-4 h-4" /> },
+    {
+      id: 'notes',
+      label: totalNotesCount > 0 ? `笔记(${totalNotesCount})` : '笔记',
+      icon: <NotebookPen className="w-4 h-4" />,
+    },
+  ];
+
+  const studyPanelNode = (mobileSheet = false) => (
+    <StudyPanel
+      article={article}
+      blindMode={blindMode}
+      activeTab={studyTab}
+      onTabChange={setStudyTab}
+      mobileSheet={mobileSheet}
+      onCloseSheet={() => setMobileSheetOpen(false)}
+      clickedWords={clickedWords}
+      annotations={annotations}
+      customNotes={customNotes}
+      onSubmitQuiz={async (answers, score) => {
+        const res = await api.updateArticle(article.id, {
+          quiz_answers: answers,
+          quiz_score: score,
+        });
+        setArticle(res.article);
+        onNotify(`自测已提交：得分 ${score} 分`);
+      }}
+      onDeleteWord={handleWordDelete}
+      onDeleteAnnotation={handleDeleteAnnotation}
+      onUpdateWordNote={async (id, note) => {
+        await handleWordUpdate(id, { note });
+      }}
+      onUpdateAnnotationNote={async (id, note) => {
+        const res = await api.updateAnnotation(id, { note });
+        setAnnotations((prev) => prev.map((a) => (a.id === id ? res.annotation : a)));
+        onNotify('标注笔记已保存');
+      }}
+      onCreateCustomNote={async (payload) => {
+        const res = await api.createCustomNote({ ...payload, articleId: article.id });
+        setCustomNotes((prev) => [res.customNote, ...prev]);
+        onNotify('自建笔记已保存');
+      }}
+      onUpdateCustomNote={async (id, payload) => {
+        const res = await api.updateCustomNote(id, payload);
+        setCustomNotes((prev) => prev.map((n) => (n.id === id ? res.customNote : n)));
+        onNotify('笔记已更新');
+      }}
+      onDeleteCustomNote={async (id) => {
+        await api.deleteCustomNote(id);
+        setCustomNotes((prev) => prev.filter((n) => n.id !== id));
+        onNotify('已删除该条笔记');
+      }}
+      onOpenMcpEnrich={onOpenMcp}
+    />
+  );
+
   return (
-    <div className="space-y-4 pb-8">
-      {/* Top Floating Reading Toolbar */}
-      <div className="glass-panel rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-3 z-30">
+    <div className="space-y-3 sm:space-y-4 pb-24 lg:pb-8">
+      {/* Mobile Compact Single-Row Reading Bar */}
+      <div className="lg:hidden sticky top-0 z-30 space-y-2">
+        <div className="glass-panel rounded-2xl px-2.5 py-2 flex items-center justify-between gap-1.5">
+          <button
+            onClick={async () => {
+              await flushReadingSeconds(false);
+              onFocusChange(false);
+              onBack();
+            }}
+            className="glass-soft hover:bg-white/15 rounded-xl px-2.5 py-1.5 text-xs font-medium flex items-center gap-1 cursor-pointer shrink-0"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>返回</span>
+          </button>
+
+          <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1 tabular-nums truncate">
+            <Clock className="w-3 h-3 text-cyan-300/80 shrink-0" />
+            {formatClock(totalSeconds)}
+          </span>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleToggleTts}
+              className="glass-soft hover:bg-white/15 rounded-xl px-2.5 py-1.5 text-xs flex items-center gap-1 text-cyan-300 cursor-pointer tabular-nums"
+              title="朗读/暂停"
+            >
+              {ttsStatus === 'playing' ? (
+                <Pause className="w-3.5 h-3.5" />
+              ) : (
+                <Play className="w-3.5 h-3.5" />
+              )}
+              <span>{ttsStatus === 'playing' ? '暂停' : '朗读'}</span>
+            </button>
+
+            <button
+              onClick={() => setMobileToolsOpen((v) => !v)}
+              className={`rounded-xl px-2.5 py-1.5 text-xs flex items-center gap-1 border cursor-pointer ${
+                mobileToolsOpen
+                  ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
+                  : 'glass-soft text-[var(--text-secondary)]'
+              }`}
+              title="排版与阅读工具"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Aa</span>
+            </button>
+
+            <button
+              onClick={handleToggleCompleted}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer ${
+                article.read_status === 'completed'
+                  ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-200'
+                  : 'liquid-btn-primary'
+              }`}
+            >
+              {article.read_status === 'completed' ? (
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              ) : (
+                <BookOpenCheck className="w-3.5 h-3.5" />
+              )}
+              <span>{article.read_status === 'completed' ? '已读' : '读完'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Mobile Reader Preferences & Controls */}
+        {mobileToolsOpen && (
+          <div className="glass-elevated iridescent-border rounded-2xl p-3.5 space-y-3 text-xs shadow-2xl">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[var(--text-muted)]">正文字号 ({currentFontSize}px)</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateSettings?.({ reader_font_size: Math.max(15, currentFontSize - 1) })
+                  }
+                  disabled={currentFontSize <= 15}
+                  className="glass-soft px-2.5 py-1 rounded-lg flex items-center gap-1 disabled:opacity-40 cursor-pointer"
+                >
+                  <Minus className="w-3 h-3" /> A-
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateSettings?.({ reader_font_size: Math.min(23, currentFontSize + 1) })
+                  }
+                  disabled={currentFontSize >= 23}
+                  className="glass-soft px-2.5 py-1 rounded-lg flex items-center gap-1 disabled:opacity-40 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> A+
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setBlindMode((v) => !v)}
+                className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1 border cursor-pointer ${
+                  blindMode
+                    ? 'bg-amber-500/20 border-amber-400/45 text-amber-200'
+                    : 'glass-soft text-[var(--text-secondary)]'
+                }`}
+              >
+                {blindMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {blindMode ? '盲读模式中' : '精读拆解模式'}
+              </button>
+
+              <button
+                onClick={() => setHighlightCoreVocab((v) => !v)}
+                className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1 border cursor-pointer ${
+                  highlightCoreVocab
+                    ? 'bg-violet-500/20 border-violet-400/40 text-violet-200'
+                    : 'glass-soft text-[var(--text-muted)]'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                核心词透视
+              </button>
+
+              {clickedWords.length > 0 && (
+                <button
+                  onClick={() =>
+                    handleShowAllInline(!clickedWords.some((w) => w.is_visible_inline === 1))
+                  }
+                  className="glass-soft px-2.5 py-1.5 rounded-xl text-[var(--text-secondary)] cursor-pointer"
+                >
+                  {clickedWords.some((w) => w.is_visible_inline === 1)
+                    ? '收起词下释义'
+                    : '展开词下释义'}
+                </button>
+              )}
+
+              <select
+                value={speechRate}
+                onChange={(e) => handleSpeechRateChange(Number(e.target.value))}
+                className="glass-soft rounded-xl px-2.5 py-1.5 outline-none cursor-pointer bg-transparent"
+              >
+                <option value={0.8} className="text-slate-900">语速 0.8x</option>
+                <option value={1.0} className="text-slate-900">语速 1.0x</option>
+                <option value={1.2} className="text-slate-900">语速 1.2x</option>
+              </select>
+
+              {(ttsStatus !== 'idle' || ttsChunkIndex > 0 || ttsCharOffset > 0) && (
+                <button
+                  onClick={handleResetTts}
+                  className="glass-soft px-2.5 py-1.5 rounded-xl text-amber-300 flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重置朗读
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  const next = !focusMode;
+                  setFocusMode(next);
+                  onFocusChange(next);
+                }}
+                className="glass-soft px-2.5 py-1.5 rounded-xl text-[var(--text-secondary)] flex items-center gap-1 cursor-pointer"
+              >
+                {focusMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                {focusMode ? '退出全屏' : '专注全屏'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Full Floating Reading Toolbar */}
+      <div className="hidden lg:flex glass-panel rounded-2xl px-4 py-2.5 flex-wrap items-center justify-between gap-3 sticky top-3 z-30">
         <div className="flex items-center gap-2.5">
           <button
             onClick={async () => {
@@ -624,7 +909,7 @@ export const ReaderView: React.FC<Props> = ({
             返回
           </button>
 
-          <span className="text-xs px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 font-medium hidden sm:inline">
+          <span className="text-xs px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 font-medium">
             {article.stage_label}
           </span>
 
@@ -775,22 +1060,37 @@ export const ReaderView: React.FC<Props> = ({
       {/* Main Split Reader Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left: Article Body */}
-        <article className="lg:col-span-7 glass-panel rounded-3xl p-6 md:p-9 space-y-6">
+        <article className="lg:col-span-7 glass-panel rounded-2xl sm:rounded-3xl px-4 py-5 sm:p-6 md:p-9 space-y-5 sm:space-y-6 min-w-0 max-w-full">
           <header className="space-y-2.5 pb-4 border-b border-white/10">
-            <h1 className="text-xl md:text-2xl font-bold leading-snug">{article.title}</h1>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
+            <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug break-words">{article.title}</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[var(--text-muted)]">
               <span>{article.difficulty}</span>
               <span>·</span>
               <span>{article.word_count} 词</span>
               <span>·</span>
               <span>建议 {article.estimated_minutes} 分钟</span>
             </div>
-            <div className="text-[11px] text-cyan-300/90 bg-cyan-500/10 border border-cyan-400/20 rounded-xl px-3 py-1.5 inline-block">
-              💡 提示：<strong>单击任意单词</strong>即可在词下显示中文并自动加入复习；<strong>拖动划选短语或长句</strong>可高亮并记笔记；<strong>点击词下中文气泡</strong>可编辑笔记。
-            </div>
+            {!tipDismissed && (
+              <div className="text-[11px] text-cyan-300/90 bg-cyan-500/10 border border-cyan-400/20 rounded-xl px-3 py-1.5 flex items-start justify-between gap-2">
+                <span>
+                  💡 提示：<strong>单击任意单词</strong>即可在词下显示中文并自动加入复习；<strong>长按划选短语或长句</strong>可高亮并记笔记；<strong>点击词下中文气泡</strong>可编辑笔记。
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTipDismissed(true);
+                    localStorage.setItem('luminaread-reader-tip-dismissed', '1');
+                  }}
+                  className="p-0.5 rounded hover:bg-white/10 text-cyan-200 shrink-0 cursor-pointer"
+                  title="不再提示"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </header>
 
-          <div>
+          <div className="min-w-0 max-w-full">
             {paragraphs.map((p, idx) => {
               const activeChunk =
                 ttsStatus !== 'idle' || ttsChunkIndex > 0 || ttsCharOffset > 0
@@ -833,6 +1133,7 @@ export const ReaderView: React.FC<Props> = ({
                   }}
                   onAnnotationClick={() => {
                     setStudyTab('notes');
+                    if (window.innerWidth < 1024) setMobileSheetOpen(true);
                   }}
                   onTextMouseUp={(pIdx, pText) => handleTextMouseUp(pIdx, pText)}
                 />
@@ -841,53 +1142,52 @@ export const ReaderView: React.FC<Props> = ({
           </div>
         </article>
 
-        {/* Right: Study Panel */}
-        <aside className="lg:col-span-5 lg:sticky lg:top-20">
-          <StudyPanel
-            article={article}
-            blindMode={blindMode}
-            activeTab={studyTab}
-            onTabChange={setStudyTab}
-            clickedWords={clickedWords}
-            annotations={annotations}
-            customNotes={customNotes}
-            onSubmitQuiz={async (answers, score) => {
-              const res = await api.updateArticle(article.id, {
-                quiz_answers: answers,
-                quiz_score: score,
-              });
-              setArticle(res.article);
-              onNotify(`自测已提交：得分 ${score} 分`);
-            }}
-            onDeleteWord={handleWordDelete}
-            onDeleteAnnotation={handleDeleteAnnotation}
-            onUpdateWordNote={async (id, note) => {
-              await handleWordUpdate(id, { note });
-            }}
-            onUpdateAnnotationNote={async (id, note) => {
-              const res = await api.updateAnnotation(id, { note });
-              setAnnotations((prev) => prev.map((a) => (a.id === id ? res.annotation : a)));
-              onNotify('标注笔记已保存');
-            }}
-            onCreateCustomNote={async (payload) => {
-              const res = await api.createCustomNote({ ...payload, articleId: article.id });
-              setCustomNotes((prev) => [res.customNote, ...prev]);
-              onNotify('自建笔记已保存');
-            }}
-            onUpdateCustomNote={async (id, payload) => {
-              const res = await api.updateCustomNote(id, payload);
-              setCustomNotes((prev) => prev.map((n) => (n.id === id ? res.customNote : n)));
-              onNotify('笔记已更新');
-            }}
-            onDeleteCustomNote={async (id) => {
-              await api.deleteCustomNote(id);
-              setCustomNotes((prev) => prev.filter((n) => n.id !== id));
-              onNotify('已删除该条笔记');
-            }}
-            onOpenMcpEnrich={onOpenMcp}
-          />
+        {/* Desktop Right: Study Panel */}
+        <aside className="hidden lg:block lg:col-span-5 lg:sticky lg:top-20">
+          {studyPanelNode(false)}
         </aside>
       </div>
+
+      {/* Mobile Bottom 5-Tab Study Dock */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-2 pb-safe pointer-events-none">
+        <div className="glass-elevated iridescent-border rounded-2xl px-1.5 py-1.5 flex items-center justify-around pointer-events-auto shadow-2xl mb-1.5">
+          {mobileStudyTabs.map((t) => {
+            const isActive = mobileSheetOpen && studyTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setStudyTab(t.id);
+                  setMobileToolsOpen(false);
+                  setMobileSheetOpen(true);
+                }}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl text-[11px] transition-colors cursor-pointer ${
+                  isActive
+                    ? 'bg-white/15 text-cyan-300 font-semibold'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {t.icon}
+                <span className="truncate max-w-full px-0.5">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Mobile Study Bottom Sheet */}
+      {mobileSheetOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div
+            onClick={() => setMobileSheetOpen(false)}
+            className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
+          />
+          <div className="relative z-10 h-[78dvh] max-h-[78dvh] flex flex-col">
+            {studyPanelNode(true)}
+          </div>
+        </div>
+      )}
 
       {/* Floating Phrase / Sentence Highlight Popover */}
       {selectionState && (

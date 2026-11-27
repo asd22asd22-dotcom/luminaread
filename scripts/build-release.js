@@ -65,7 +65,7 @@ function buildWindowsPatchZip(version) {
 
 async function main() {
   const pkg = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf-8'));
-  const version = String(pkg.version || '1.1.0');
+  const version = String(pkg.version || '1.2.0');
   const updatesDir = path.join(PROJECT_ROOT, 'release', 'updates');
   fs.mkdirSync(updatesDir, { recursive: true });
 
@@ -86,7 +86,7 @@ async function main() {
     version,
     releaseDate: new Date().toISOString().slice(0, 10),
     notes:
-      'v1.1.0: 新增 Android 离线精读版（内置 90 篇分级精读与 6.1 万词典）、Windows ⇄ Android 局域网双向同步、跨端应用内检查更新与 SHA-256 校验自动安装。',
+      'v1.2.0: 全面优化 Android 阅读体验 — 修复词下释义/ruby撑破屏幕导致句子被截断的问题，重构沉浸式单行顶栏与底部学习抽屉、触屏长按划句标注及系统安全区适配。',
     windows: {
       url: `${prefix}${winPatch.fileName}`,
       fileName: winPatch.fileName,

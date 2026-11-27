@@ -57,13 +57,15 @@ export const SelectionPopover: React.FC<Props> = ({
   }, [selectedText]);
 
   // Compute safe viewport position
-  const width = 330;
-  const left = Math.max(
-    12,
-    Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2)
-  );
-  const preferTop = rect.top > 250;
-  const top = preferTop ? rect.top - 12 : rect.bottom + 12;
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 640;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
+  const width = Math.min(330, vw - 24);
+  const left = Math.max(12, Math.min(vw - width - 12, rect.left + rect.width / 2 - width / 2));
+  const preferTop = rect.top > 340;
+  const top = preferTop
+    ? Math.max(12, rect.top - 12)
+    : Math.max(12, Math.min(Math.max(12, vh - 360), rect.bottom + 12));
 
   const handleSave = async () => {
     setSaving(true);
@@ -75,18 +77,33 @@ export const SelectionPopover: React.FC<Props> = ({
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        left,
-        top,
-        width,
-        transform: preferTop ? 'translateY(-100%)' : 'none',
-        zIndex: 60,
-      }}
-      onClick={(e) => e.stopPropagation()}
-      className="glass-elevated iridescent-border rounded-2xl p-3.5 space-y-3 text-sm"
-    >
+    <>
+      {isMobileViewport && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-55 bg-black/45 backdrop-blur-[2px]"
+        />
+      )}
+      <div
+        style={
+          isMobileViewport
+            ? undefined
+            : {
+                position: 'fixed',
+                left,
+                top,
+                width,
+                transform: preferTop ? 'translateY(-100%)' : 'none',
+                zIndex: 60,
+              }
+        }
+        onClick={(e) => e.stopPropagation()}
+        className={
+          isMobileViewport
+            ? 'fixed inset-x-2 bottom-2 z-60 max-h-[82dvh] overflow-y-auto glass-elevated iridescent-border rounded-3xl p-4 space-y-3 text-sm shadow-2xl'
+            : 'glass-elevated iridescent-border rounded-2xl p-3.5 space-y-3 text-sm'
+        }
+      >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-cyan-300">
           <Highlighter className="w-3.5 h-3.5" />
@@ -163,6 +180,7 @@ export const SelectionPopover: React.FC<Props> = ({
           </>
         )}
       </button>
-    </div>
+      </div>
+    </>
   );
 };

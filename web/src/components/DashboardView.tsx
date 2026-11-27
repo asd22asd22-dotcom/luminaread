@@ -14,6 +14,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import type { StatsResponse } from '../types';
+import { isNativeMobile } from '../api';
 import type { NavView } from './Sidebar';
 
 interface Props {
@@ -71,7 +72,7 @@ export const DashboardView: React.FC<Props> = ({
   return (
     <div className="space-y-6 pb-10">
       {/* Hero Banner */}
-      <section className="glass-panel iridescent-border rounded-3xl p-6 md:p-8 relative overflow-hidden">
+      <section className="glass-panel iridescent-border rounded-3xl p-4 sm:p-6 md:p-8 relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-soft text-xs font-medium text-cyan-300">
@@ -88,11 +89,11 @@ export const DashboardView: React.FC<Props> = ({
               {recommended && (
                 <button
                   onClick={() => onOpenArticle(recommended.id)}
-                  className="liquid-btn-primary rounded-2xl px-5 py-2.5 text-sm font-semibold inline-flex items-center gap-2 cursor-pointer"
+                  className="liquid-btn-primary rounded-2xl px-4 sm:px-5 py-2.5 text-sm font-semibold inline-flex items-center gap-2 cursor-pointer max-w-full"
                 >
                   {recommended.read_status === 'reading' ? '继续阅读' : '开始第一篇精读'}：
-                  <span className="truncate max-w-[220px]">{recommended.title}</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <span className="truncate max-w-[160px] sm:max-w-[220px]">{recommended.title}</span>
+                  <ArrowRight className="w-4 h-4 shrink-0" />
                 </button>
               )}
               <button
@@ -102,13 +103,15 @@ export const DashboardView: React.FC<Props> = ({
                 <UploadCloud className="w-4 h-4 text-cyan-400" />
                 导入外部文章
               </button>
-              <button
-                onClick={onOpenMcp}
-                className="glass-soft hover:bg-white/15 rounded-2xl px-4 py-2.5 text-sm font-medium inline-flex items-center gap-2 cursor-pointer"
-              >
-                <PlugZap className="w-4 h-4 text-violet-400" />
-                MCP 接入指南
-              </button>
+              {!isNativeMobile() && (
+                <button
+                  onClick={onOpenMcp}
+                  className="glass-soft hover:bg-white/15 rounded-2xl px-4 py-2.5 text-sm font-medium inline-flex items-center gap-2 cursor-pointer"
+                >
+                  <PlugZap className="w-4 h-4 text-violet-400" />
+                  MCP 接入指南
+                </button>
+              )}
             </div>
           </div>
 

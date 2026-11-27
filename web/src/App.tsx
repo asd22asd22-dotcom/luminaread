@@ -179,7 +179,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen h-screen relative flex flex-col overflow-hidden">
+    <div className="min-h-[100dvh] h-[100dvh] relative flex flex-col overflow-hidden">
       <LiquidBackdrop theme={theme} />
 
       <DesktopTitleBar
@@ -192,8 +192,8 @@ export default function App() {
 
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
 
-      {/* Mobile Top Nav */}
-      {!focusMode && (
+      {/* Mobile Top Nav (hidden in focusMode or reader to maximize reading viewport) */}
+      {!focusMode && view !== 'reader' && (
         <header className={`lg:hidden sticky top-0 z-30 px-3 pb-2 ${mobileNative ? 'pt-safe' : 'pt-3'}`}>
           <div className="glass-panel rounded-2xl px-3 py-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-bold text-sm">
@@ -256,7 +256,13 @@ export default function App() {
       )}
 
       {/* Main Content */}
-      <main className={`flex-1 min-w-0 min-h-0 overflow-y-auto p-4 md:p-6 z-10 overflow-x-hidden ${!focusMode ? 'pb-24 lg:pb-6' : ''}`}>
+      <main
+        className={`flex-1 min-w-0 min-h-0 overflow-y-auto z-10 overflow-x-hidden ${
+          view === 'reader'
+            ? 'px-2 py-2 sm:p-4 md:p-6 pb-24 lg:pb-6'
+            : `p-3 sm:p-4 md:p-6 ${!focusMode ? 'pb-24 lg:pb-6' : ''}`
+        }`}
+      >
         {view === 'dashboard' && (
           <DashboardView
             stats={stats}
@@ -283,6 +289,10 @@ export default function App() {
             articleId={activeArticleId}
             scrollToPara={scrollToPara}
             settings={settings}
+            onUpdateSettings={async (patch) => {
+              const res = await api.updateSettings(patch);
+              setSettings(res.settings);
+            }}
             onBack={() => handleNavigate('library')}
             onNotify={notify}
             onOpenMcp={() => setShowMcp(true)}
@@ -355,8 +365,8 @@ export default function App() {
         />
       )}
 
-      {/* Mobile Floating Bottom Tab Bar */}
-      {!focusMode && (
+      {/* Mobile Floating Bottom Tab Bar (hidden inside reader so study dock owns bottom bar) */}
+      {!focusMode && view !== 'reader' && (
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pb-safe pointer-events-none">
           <div className="glass-elevated iridescent-border rounded-2xl px-2 py-1.5 flex items-center justify-around pointer-events-auto shadow-2xl mb-2">
             <button
@@ -371,7 +381,7 @@ export default function App() {
             <button
               onClick={() => handleNavigate('library', 'all')}
               className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-xl text-[11px] transition-colors ${
-                view === 'library' || view === 'reader' ? 'bg-white/15 text-cyan-300 font-semibold' : 'text-[var(--text-muted)]'
+                view === 'library' ? 'bg-white/15 text-cyan-300 font-semibold' : 'text-[var(--text-muted)]'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -404,7 +414,7 @@ export default function App() {
 
       {/* Floating Glass Toast */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-70 glass-elevated iridescent-border rounded-2xl px-4 py-2.5 text-xs font-medium text-[var(--text-primary)] shadow-2xl flex items-center gap-2">
+        <div className="fixed bottom-20 lg:bottom-5 right-3 sm:right-5 max-w-[calc(100vw-1.5rem)] z-70 glass-elevated iridescent-border rounded-2xl px-4 py-2.5 text-xs font-medium text-[var(--text-primary)] shadow-2xl flex items-center gap-2">
           <Sparkles className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
           <span>{toast}</span>
         </div>
